@@ -1,0 +1,9 @@
+testID,sample_id,rating,date_time
+MG28_DesktopTest,plant,5 - Excellent,2025-04-01T07:05:18.944Z
+MG28_DesktopTest,bag,2 - Poor,2025-04-01T07:05:18.944Z
+MG28_DesktopTest,box,5 - Excellent,2025-04-01T07:05:18.944Z
+MG28_DesktopTrain,bag,5 - Excellent,2025-04-01T07:05:56.496Z
+MG28_VRTrain,bag,4 - Good,2025-04-01T07:06:48.837Z
+MG28_VRTest,bag,4 - Good,2025-04-01T07:09:26.991Z
+MG28_VRTest,box,4 - Good,2025-04-01T07:09:26.991Z
+MG28_VRTest,plant,3 - Fair,2025-04-01T07:09:26.991Z

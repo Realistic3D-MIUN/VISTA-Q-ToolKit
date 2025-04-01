@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>QoE Monocular Images</title>
+    <style>
+      body, html {margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;}
+      /* Modal styles */
+      #testIdModal, #modeSelectionModal {position: fixed;top: 0;left: 0;width: 100%;height: 100%;background-color: #808080;
+        display: flex;justify-content: center;align-items: center;z-index: 1000;}
+      #testIdModalContent, #modeSelectionContent {background: #fff;padding: 20px 30px;border-radius: 5px;text-align: center;}
+      #testIdModalContent input {padding: 10px;font-size: 16px;margin-top: 10px;width: 80%;}
+      button {padding: 10px 20px;font-size: 16px;margin: 10px;cursor: pointer;border: none;border-radius: 5px;
+        background-color: #007bff;color: white;transition: background-color 0.3s;}
+      button:hover {background-color: #0056b3;}
+
+      #desktopContainer {display: none;width: 100vw;height: 100vh;position: fixed;
+        top: 0;left: 0;background-color: #808080;display: flex;flex-direction: column;
+        justify-content: center;align-items: center;}
+
+      #imageContainer {width: 100%;height: 100%;display: flex;justify-content: center;
+        align-items: center;position: absolute;top: 0;left: 0;}
+      #imageContainer img {max-width: 90%;max-height: 90%;object-fit: contain;}
+      
+      #controlsContainer {width: 100%;height: 100%;display: flex;justify-content: center;
+        align-items: center;position: absolute;top: 0;left: 0;z-index: 10;}
+      .rating-button {padding: 15px 30px;font-size: 18px;}
+      #sampleIdDisplay {position: fixed;top: 20px;left: 50%;transform: translateX(-50%);background: #808080;
+        color: white;padding: 10px 20px;border-radius: 5px;font-size: 18px;z-index: 20;}
+      .end-message {text-align: center;color: #007bff;font-size: 24px;margin-bottom: 20px;}
+      #backToHome {padding: 15px 30px;font-size: 18px;background-color: #28a745;}
+      #backToHome:hover {background-color: #218838;}
+    </style>
+  </head>
+  <body>
+    <!-- Test ID Modal -->
+    <div id="testIdModal">
+      <div id="testIdModalContent">
+        <h2 style="font-family: Arial, Helvetica, sans-serif;">Please Enter Your Test ID</h2>
+        <input type="text" id="testIdInput" placeholder="Enter test_id" style="font-family: Arial, Helvetica, sans-serif;"/>
+        <br />
+        <button id="testIdSubmit">Submit</button>
+      </div>
+    </div>
+
+    <!-- Mode Selection Modal -->
+    <div id="modeSelectionModal" style="display: none;">
+      <div id="modeSelectionContent">
+        <h2>Select Display Mode</h2>
+        <button id="desktopMode">Desktop Mode</button>
+        <button id="vrMode">Enter VR</button>
+      </div>
+    </div>
+
+    <!-- Desktop Mode Container -->
+    <div id="desktopContainer">
+      <div id="sampleIdDisplay"></div>
+      <div id="imageContainer"></div>
+      <div id="controlsContainer"></div>
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.152.2/build/three.module.js"
+        }
+      }
+    </script>
+    <script type="module" crossorigin="anonymous">
+      import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
+      import { VRButton } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/VRButton.js';
+      import { XRControllerModelFactory } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/XRControllerModelFactory.js';
+      import { FontLoader } from 'https://threejs.org/examples/jsm/loaders/FontLoader.js';
+      import { TextGeometry } from 'https://threejs.org/examples/jsm/geometries/TextGeometry.js';
+
+      import * as ThreeMeshUI from 'https://cdn.jsdelivr.net/npm/three-mesh-ui@6.5.4/+esm';
+      
+      // Global variables (including one to store the test_id)
+      let test_id = "";
+      let camera, scene, renderer, controller;
+      let imageSphere;
+      let startButton3D;
+      let text3D;
+      let ratingButtons = [];
+      let presentationTimeout;
+      let currentMode = null; // 'desktop' or 'vr'
+      let desktopImageElement = null;
+      let sampleTextMesh = null;
+
+      let textureLoader = new THREE.TextureLoader();
+      let imagePairs = [];
+      let currentImageIndex = 0;
+
+      // Arrays to keep the results
+      let testID;
+      let sampleID_List = [];
+      let rating_List = [];
+
+      // Create rating buttons: "Excellent", "Very Good", "Good", "Acceptable", "Poor"
+      var ratings = ["Excellent", "Very Good", "Good", "Acceptable", "Poor"]; // default ratings if we don't ge any from server
+      let testMode = false;
+      
+      // A simple state machine: "start" -> "presentation" -> "rating"
+      let phase = "start";
+
+      // Function to shuffle an array in place (Fisher-Yates algorithm)
+      function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [array[i], array[j]] = [array[j], array[i]];
+        }
+      }
+
+
+      fetch('/api/getACR_Scale/')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      })
+      .then(data => {
+        ratings = data; // Update the ratings variable with the fetched data
+        console.log('Updated ratings:', ratings);
+        // Optionally, update the UI here using the new ratings
+      })
+      .catch(error => {
+        console.error('Error fetching rating scale:', error);
+      });
+
+      // Fetch CSV Data
+      fetch('./public/Test_Configs/Mono_Test_Sequence.csv')
+        .then(response => response.text())
+        .then(text => {
+          const lines = text.split("\n").slice(1); // Skip header
+          lines.forEach(line => {
+            const [sample_id_csv, image_path, zoom_factor, presentation_time] = line.split(",");
+            if (image_path) {
+              imagePairs.push({ 
+                sample_id: sample_id_csv.trim(), 
+                image_path: image_path.trim(), 
+                zoom_factor: zoom_factor ? parseFloat(zoom_factor.trim()) : 0.6,
+                presentation_time: presentation_time ? parseFloat(presentation_time.trim()) : 2
+              });
+            }
+          });
+          // Shuffle the list and reset the index
+          shuffle(imagePairs);
+          currentImageIndex = 0;
+        });
+
+      // Wait until the user submits the test_id before showing mode selection
+      document.getElementById('testIdSubmit').addEventListener('click', () => {
+        const input = document.getElementById('testIdInput').value.trim();
+        if (input === "") {
+          alert("Please enter a valid test ID.");
+          return;
+        }
+        test_id = input;
+        console.log("Test ID entered:", test_id);
+        testID = test_id;
+        // Remove the test ID modal and show mode selection
+        document.getElementById('testIdModal').style.display = 'none';
+        document.getElementById('modeSelectionModal').style.display = 'flex';
+      });
+
+      // Handle mode selection
+      document.getElementById('desktopMode').addEventListener('click', () => {
+        currentMode = 'desktop';
+        document.getElementById('modeSelectionModal').style.display = 'none';
+        document.getElementById('desktopContainer').style.display = 'block';
+        createDesktopStartButton();
+      });
+
+      document.getElementById('vrMode').addEventListener('click', () => {
+        currentMode = 'vr';
+        document.getElementById('modeSelectionModal').style.display = 'none';
+        init();
+        animate();
+      });
+
+      // Desktop mode functions
+      function createDesktopStartButton() {
+        const startButton = document.createElement('button');
+        startButton.textContent = 'Start Test';
+        startButton.className = 'rating-button';
+        startButton.onclick = () => {
+          document.getElementById('controlsContainer').innerHTML = '';
+          phase = 'presentation';
+          loadNextImagePair();
+        };
+        document.getElementById('controlsContainer').appendChild(startButton);
+      }
+
+      function createDesktopRatingButtons() {
+        const container = document.getElementById('controlsContainer');
+        container.innerHTML = '';
+        
+        ratings.forEach(rating => {
+          const button = document.createElement('button');
+          button.textContent = rating;
+          button.className = 'rating-button';
+          button.onclick = () => {
+            rating_List.push(rating);
+            phase = 'presentation';
+            // Remove the image before showing rating buttons
+            if (desktopImageElement) {
+              desktopImageElement.remove();
+              desktopImageElement = null;
+            }
+            loadNextImagePair();
+          };
+          container.appendChild(button);
+        });
+      }
+
+      // Modified loadNextImagePair function to handle both modes
+      function loadNextImagePair() {
+        if (presentationTimeout) clearTimeout(presentationTimeout);
+
+        if (currentImageIndex < imagePairs.length) {
+          const { sample_id, image_path, zoom_factor, presentation_time } = imagePairs[currentImageIndex];
+          currentImageIndex++;
+          sampleID_List.push(sample_id);
+
+          if (currentMode === 'desktop') {
+            // Desktop mode
+            const imageContainer = document.getElementById('imageContainer');
+            const sampleIdDisplay = document.getElementById('sampleIdDisplay');
+            const controlsContainer = document.getElementById('controlsContainer');
+            
+            // Update sample ID display
+            sampleIdDisplay.textContent = `Sample ID: ${sample_id}`;
+            if (testMode){
+              
+              //show the sample ID display
+              sampleIdDisplay.style.display = 'block';
+            }
+            else{
+              //hide the sample ID display
+              sampleIdDisplay.style.display = 'none';
+            }
+            
+            // Clear any existing rating buttons
+            controlsContainer.innerHTML = '';
+            
+            // Create and display image
+            if (desktopImageElement) {
+              imageContainer.removeChild(desktopImageElement);
+            }
+            desktopImageElement = document.createElement('img');
+            desktopImageElement.src = image_path;
+            imageContainer.appendChild(desktopImageElement);
+
+            // Schedule rating buttons
+            presentationTimeout = setTimeout(() => {
+              // Remove the image
+              if (desktopImageElement) {
+                desktopImageElement.remove();
+                desktopImageElement = null;
+              }
+              createDesktopRatingButtons();
+              phase = 'rating';
+            }, presentation_time * 1000);
+          } else {
+            // VR mode
+            textureLoader.load(image_path, imageTexture => {
+              if (imageSphere) scene.remove(imageSphere);
+
+              const imageWidth = imageTexture.image.width;
+              const imageHeight = imageTexture.image.height;
+              const aspect = imageWidth / imageHeight;
+
+              const thetaLength = (Math.PI / 4) * zoom_factor;
+              const phiLength = thetaLength * aspect;
+              const phiStart = (3 * Math.PI / 2) - (phiLength / 2);
+              const thetaStart = (Math.PI / 2) - (thetaLength / 2);
+
+              const geometry = new THREE.SphereGeometry(500, 60, 40, phiStart, phiLength, thetaStart, thetaLength);
+              geometry.scale(-1, 1, 1);
+
+              const imageMaterial = new THREE.MeshBasicMaterial({ map: imageTexture });
+              imageSphere = new THREE.Mesh(geometry, imageMaterial);
+              scene.add(imageSphere);
+
+              if (sampleTextMesh) scene.remove(sampleTextMesh);
+              if (testMode){
+                const canvasSample = document.createElement("canvas");
+                const ctxSample = canvasSample.getContext("2d");
+                canvasSample.width = 512;
+                canvasSample.height = 128;
+                ctxSample.fillStyle = "rgba(0, 0, 0, 0.5)";
+                ctxSample.fillRect(0, 0, canvasSample.width, canvasSample.height);
+                ctxSample.fillStyle = "#FFFFFF";
+                ctxSample.font = "bold 40px Arial";
+                ctxSample.textAlign = "center";
+                ctxSample.fillText(sample_id, canvasSample.width / 2, canvasSample.height / 2 + 15);
+
+                const sampleTexture = new THREE.CanvasTexture(canvasSample);
+                const sampleMaterial = new THREE.MeshBasicMaterial({ map: sampleTexture, transparent: true });
+                const sampleGeometry = new THREE.PlaneGeometry(1, 0.25);
+                sampleTextMesh = new THREE.Mesh(sampleGeometry, sampleMaterial);
+                sampleTextMesh.position.set(0, -0.8, -2);
+                scene.add(sampleTextMesh);
+              }
+              presentationTimeout = setTimeout(showRatingScale, presentation_time * 1000);
+            });
+          }
+        } else {
+          showEndOfListMessage();
+        }
+      }
+      // Modified showEndOfListMessage function to handle both modes
+      function showEndOfListMessage() {
+        if (currentMode === 'desktop') {
+          const container = document.getElementById('imageContainer');
+          container.innerHTML = `
+            <div style="text-align: center;">
+              <h1 class="end-message" style="color: #000000;">Thank you for your participation!</h1>
+            </div>
+          `;
+          document.getElementById('controlsContainer').innerHTML = '';
+          document.getElementById('sampleIdDisplay').style.display = 'none';
+        } else {
+          if (startButton3D) scene.remove(startButton3D);
+          if (imageSphere) scene.remove(imageSphere);
+          if (sampleTextMesh) scene.remove(sampleTextMesh);
+          ratingButtons.forEach(btn => scene.remove(btn));
+          ratingButtons = [];
+
+          // Create thank you message
+          const canvas_text = document.createElement("canvas");
+          const ctx_text = canvas_text.getContext("2d");
+          canvas_text.width = 768;
+          canvas_text.height = 128;
+          ctx_text.fillStyle = "#007bff";
+          ctx_text.fillRect(0, 0, canvas_text.width, canvas_text.height);
+          ctx_text.fillStyle = "#FFFFFF";
+          ctx_text.font = "bold 40px Arial";
+          ctx_text.textAlign = "center";
+          ctx_text.fillText("Thank you for your participation!", canvas_text.width / 2, canvas_text.height / 1.8);
+          const textTexture = new THREE.CanvasTexture(canvas_text);
+          const textMaterial = new THREE.MeshBasicMaterial({ map: textTexture });
+          const textGeometry = new THREE.PlaneGeometry(1.0, 0.2);
+          text3D = new THREE.Mesh(textGeometry, textMaterial);
+          text3D.position.set(0, 0.5, -2);
+          text3D.name = "text3D";
+          scene.add(text3D);
+
+          // Show the exit button
+          const exitButton = scene.getObjectByName("exitButton");
+          if (exitButton) {
+            exitButton.visible = true;
+          }
+        }
+        
+        console.log("Sample IDs:", sampleID_List);
+        console.log("Ratings:", rating_List);
+        writeDataToServer();
+      }
+
+      function cleanupAndReset() {
+        // Remove all VR scene objects
+        if (startButton3D) scene.remove(startButton3D);
+        if (imageSphere) scene.remove(imageSphere);
+        if (sampleTextMesh) scene.remove(sampleTextMesh);
+        const exitButton = scene.getObjectByName("exitButton");
+        if (exitButton) {
+          exitButton.visible = false; // Hide the exit button when resetting
+        }
+        ratingButtons.forEach(btn => scene.remove(btn));
+        ratingButtons = [];
+
+        // Show mode selector and hide desktop container
+        document.getElementById('modeSelectionModal').style.display = 'flex';
+        document.getElementById('desktopContainer').style.display = 'none';
+
+        // Reset state
+        phase = 'start';
+        currentImageIndex = 0;
+        sampleID_List = [];
+        rating_List = [];
+      }
+
+      function writeDataToServer(){
+        fetch('/api/write_mono_results', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            testID: test_id,
+            sceneID: sampleID_List,
+            rating: rating_List
+          })
+        })
+          .then(response => response.json())
+          .then(data => console.log('Server response:', data))
+          .catch(error => console.error('Error:', error));
+      }
+
+      function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x808080);
+
+        camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 0);
+        scene.add(camera);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
+        
+        // Create VR and Exit VR buttons
+        const vrButton = VRButton.createButton(renderer);
+        document.body.appendChild(vrButton);
+
+        // Create Exit VR button using ThreeMeshUI but initially hide it
+        const exitContainer = new ThreeMeshUI.Block({
+          width: 0.6,
+          height: 0.2,
+          padding: 0.05,
+          justifyContent: 'center',
+          alignItems: 'center',
+          fontFamily: "./public/js/assets/Roboto-msdf.json",
+          fontTexture: "./public/js/assets/Roboto-msdf.png",
+          fontSize: 0.05,
+          borderRadius: 0.05,
+          backgroundColor: new THREE.Color(0xff4444),
+          backgroundOpacity: 1
+        });
+
+        const exitText = new ThreeMeshUI.Text({
+          content: 'Exit VR',
+          fontColor: new THREE.Color(0xffffff),
+          fontSize: 0.05,
+          textAlign: 'center',
+          textShadow: true,
+          textShadowColor: new THREE.Color(0x000000),
+          textShadowBlur: 0.01
+        });
+
+        exitContainer.add(exitText);
+        exitContainer.position.set(0, 0.8, -2);
+        exitContainer.name = "exitButton";
+        exitContainer.visible = false; // Initially hide the exit button
+        scene.add(exitContainer);
+
+        // Add VR Controller
+        controller = renderer.xr.getController(0);
+        scene.add(controller);
+
+        // Create a controller grip and add the controller model.
+        const controllerModelFactory = new XRControllerModelFactory();
+        const controllerGrip = renderer.xr.getControllerGrip(0);
+        controllerGrip.add(controllerModelFactory.createControllerModel(controllerGrip));
+        scene.add(controllerGrip);
+
+        // Create a line geometry that points forward from the controller.
+        const rayGeometry = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, 0, 0),
+          new THREE.Vector3(0, 0, -1)
+        ]);
+        const rayMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 }); // red line for visibility
+        const rayLine = new THREE.Line(rayGeometry, rayMaterial);
+        rayLine.name = 'controllerRay';
+        rayLine.scale.z = 5; // Extend the ray length as needed
+        controller.add(rayLine);
+
+        // Add event listener for controller's select (button interaction)
+        controller.addEventListener('selectstart', onSelectStart);
+
+        // Create a visible 3D "Start" button
+        createStartButton();
+
+        // Handle resizing
+        window.addEventListener('resize', onWindowResize, false);
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function animate() {
+        renderer.setAnimationLoop(render);
+      }
+
+      function render() {
+        // In VR we want to show a hover effect on interactive buttons.
+        const raycaster = new THREE.Raycaster();
+        const tempMatrix = new THREE.Matrix4();
+        tempMatrix.identity().extractRotation(controller.matrixWorld);
+        const origin = new THREE.Vector3();
+        origin.setFromMatrixPosition(controller.matrixWorld);
+        const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(tempMatrix);
+        raycaster.set(origin, direction);
+
+        // Hover effect for the start button (if in start phase)
+        if (phase === "start" && startButton3D) {
+          const intersects = raycaster.intersectObject(startButton3D);
+          if (intersects.length > 0) {
+            startButton3D.scale.lerp(new THREE.Vector3(1.2, 1.2, 1), 0.1);
+          } else {
+            startButton3D.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+          }
+        }
+
+        // Hover effect for rating buttons (if in rating phase)
+        if (phase === "rating" && ratingButtons.length > 0) {
+          ratingButtons.forEach(btn => {
+            const intersects = raycaster.intersectObject(btn);
+            if (intersects.length > 0) {
+              btn.scale.lerp(new THREE.Vector3(1.2, 1.2, 1), 0.1);
+            } else {
+              btn.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+            }
+          });
+        }
+
+        // Hover effect for exit button
+        const exitButton = scene.getObjectByName("exitButton");
+        if (exitButton) {
+          const intersects = raycaster.intersectObject(exitButton);
+          if (intersects.length > 0) {
+            exitButton.scale.lerp(new THREE.Vector3(1.2, 1.2, 1), 0.1);
+          } else {
+            exitButton.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+          }
+        }
+
+        renderer.render(scene, camera);
+        ThreeMeshUI.update();
+
+      }
+
+      // The controller select handler
+      function onSelectStart() {
+        const raycaster = new THREE.Raycaster();
+        const tempMatrix = new THREE.Matrix4();
+        tempMatrix.identity().extractRotation(controller.matrixWorld);
+        const origin = new THREE.Vector3();
+        origin.setFromMatrixPosition(controller.matrixWorld);
+        const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(tempMatrix);
+        raycaster.set(origin, direction);
+
+        if (phase === "start" && startButton3D) {
+          const intersects = raycaster.intersectObject(startButton3D);
+          if (intersects.length > 0) {
+            // Start the presentation
+            scene.remove(startButton3D);
+            startButton3D = null;
+            phase = "presentation";
+            loadNextImagePair();
+          }
+        } else if (phase === "rating" && ratingButtons.length > 0) {
+          // Check if any rating button is pressed
+          const intersects = raycaster.intersectObjects(ratingButtons);
+          if (intersects.length > 0) {
+            //const rating = intersects[0].object.userData.rating;
+            const hit = intersects[0].object;
+            let node = hit;
+            // walk up until we find a userData.rating (or run out of parents)
+            while(node && node.userData.rating === undefined) {
+              node = node.parent;
+            }
+            const rating = node?.userData.rating ?? null;
+            console.log("User rated:", rating);
+            rating_List.push(rating);
+            // Remove rating buttons from scene
+            ratingButtons.forEach(btn => scene.remove(btn));
+            ratingButtons = [];
+            phase = "presentation";
+            loadNextImagePair();
+          }
+        }
+        // Check for exit button interaction
+        const exitButton = scene.getObjectByName("exitButton");
+        const exitButtonMesh = scene.getObjectByName("exitButton");
+        if (exitButtonMesh) {
+          const intersects = raycaster.intersectObject(exitButtonMesh);
+          if (intersects.length > 0 && renderer.xr.isPresenting) {
+            const session = renderer.xr.getSession();
+            if (session) session.end();
+            cleanupAndReset();
+          }
+        }
+
+        if (exitButton) {
+          const intersects = raycaster.intersectObject(exitButton);
+          if (intersects.length > 0) {
+            console.log("Exit VR button clicked");
+            if (renderer.xr.isPresenting) {
+              renderer.xr.end();
+            }
+            // Clean up VR elements
+            if (startButton3D) scene.remove(startButton3D);
+            if (imageSphere) scene.remove(imageSphere);
+            if (sampleTextMesh) scene.remove(sampleTextMesh);
+            ratingButtons.forEach(btn => scene.remove(btn));
+            ratingButtons = [];
+            
+            // Show mode selection modal again
+            document.getElementById('modeSelectionModal').style.display = 'flex';
+            document.getElementById('desktopContainer').style.display = 'none';
+            
+            // Reset phase and index
+            phase = 'start';
+            currentImageIndex = 0;
+            sampleID_List = [];
+            rating_List = [];
+          }
+        }
+      }
+
+      // Create a visible 3D "Start" button
+      function createStartButton() {
+        const container = new ThreeMeshUI.Block({
+          width: 0.6,
+          height: 0.2,
+          padding: 0.05,
+          justifyContent: 'center',
+          alignItems: 'center',
+          fontFamily: "./public/js/assets/Roboto-msdf.json",
+          fontTexture: "./public/js/assets/Roboto-msdf.png",
+          fontSize: 0.05,
+          borderRadius: 0.05,
+          backgroundColor: new THREE.Color(0x007bff),
+          backgroundOpacity: 1
+        });
+
+        const text = new ThreeMeshUI.Text({
+          content: 'Start',
+          fontColor: new THREE.Color(0xffffff),
+          fontSize: 0.05,
+          textAlign: 'center',
+          textShadow: true,
+          textShadowColor: new THREE.Color(0x000000),
+          textShadowBlur: 0.01
+        });
+
+        container.add(text);
+        container.position.set(0, 1, -2);
+        scene.add(container);
+        startButton3D = container;
+      }
+
+      // Create the rating scale UI with five options using ThreeMeshUI
+      function showRatingScale() {
+        scene.remove(imageSphere);
+        phase = "rating";
+        
+        // Base dimensions for buttons
+        const baseButtonWidth = 0.6;
+        const baseButtonHeight = 0.3
+        const spacing = 0.1;
+        
+        // Calculate total width needed for all buttons
+        const totalWidth = ratings.length * baseButtonWidth + (ratings.length - 1) * spacing;
+        const startX = -totalWidth / 2 + baseButtonWidth / 2;
+        
+        ratings.forEach((label, index) => {
+          const ratingContainer = new ThreeMeshUI.Block({
+            width: baseButtonWidth,
+            height: baseButtonHeight,
+            padding: 0.05,
+            justifyContent: 'center',
+            alignItems: 'center',
+            fontFamily: "./public/js/assets/Roboto-msdf.json",
+            fontTexture: "./public/js/assets/Roboto-msdf.png",
+            fontSize: 0.04,
+            borderRadius: 0.05,
+            backgroundColor: new THREE.Color(0x007bff),
+            backgroundOpacity: 1
+          });
+
+          const ratingText = new ThreeMeshUI.Text({
+            content: label,
+            fontColor: new THREE.Color(0xffffff),
+            fontSize: 0.04,
+            textAlign: 'center',
+            textShadow: true,
+            textShadowColor: new THREE.Color(0x000000),
+            textShadowBlur: 0.01
+          });
+
+          ratingContainer.add(ratingText);
+          ratingContainer.position.set(startX + index * (baseButtonWidth + spacing), 1, -2.5);
+          ratingContainer.userData.rating = label;
+          scene.add(ratingContainer);
+          ratingButtons.push(ratingContainer);
+          //scene.remove(exitButton);
+        });
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,3 @@
+sample_id,left_image_path,right_image_path,zoom_factor,presentation_time
+rose_1,./public/examples/images/stereo_images/flowers_left.png,./public/examples/images/stereo_images/flowers_right.png,0.4,5
+cycle,./public/examples/images/stereo_images/cycle_left.png,./public/examples/images/stereo_images/cycle_right.png,0.5,5

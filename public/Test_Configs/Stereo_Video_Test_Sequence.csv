@@ -1,0 +1,4 @@
+sample_id,left_video_path,right_video_path,zoom_factor,presentation_time
+earth,./public/examples/videos/stereo_videos/earth_left.mp4,./public/examples/videos/stereo_videos/earth_right.mp4,0.8,10
+spaceship,./public/examples/videos/stereo_videos/ship_left.mp4,./public/examples/videos/stereo_videos/ship_right.mp4,0.8,10
+

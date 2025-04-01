@@ -1,0 +1,129 @@
+body {
+    overflow: hidden;
+    margin: 0;
+    position: relative;
+  }
+  
+  .controls {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    padding: 2rem;
+    color: #fff;
+    font-family: sans-serif;
+    max-width: 280px;
+    z-index: 2;
+    border-color: #999;
+    border-width: 10px;
+    
+  }
+  .controls div {
+    text-align: right;
+    margin-bottom: 1rem;
+  }
+  /*
+  input[type=range] {
+    width: 200px;
+    color: #007bff;
+  }
+*/
+
+
+
+  button {
+    padding: 10px 20px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  
+  a {
+    color:coral;
+  }
+  
+  a:visted {
+    color: #666;
+  }
+  
+  #load-wrap {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+  }
+  
+  #load {
+    padding: 1rem;
+    font-size: 2rem;
+    cursor: pointer;
+  }
+  
+  #videosrc {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 0;
+  }
+  
+  video {
+    position: absolute;
+    right: 0;
+    top: 0;
+  }
+  
+  
+  html, body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-size: 10px;
+    background: #1b2431;
+  }
+  
+  .switch {
+    font-size: 2rem;
+    font-family: sans-serif;
+    padding: 2rem 0 2rem 2rem;
+    color: white;
+  }
+
+
+
+
+  .mdl-slider__container {
+    width: 300px; /* Adjust width as needed */
+  }
+
+  /* Color of slider knob */
+  .mdl-slider__background-flex {
+    background-color: #007bff; /* Material Design blue */
+  }
+
+  /* Color of slider track */
+  .mdl-slider__background-lower {
+    background-color: #007bff; /* Material Design blue */
+  }
+
+  .mdl-button2 {
+    padding: 10px 10px;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+    text-align: center;
+    font-size:large;
+  }
+
+  .mdl-button2:hover {
+    background-color: #0056b3;
+  }

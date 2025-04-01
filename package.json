@@ -1,0 +1,37 @@
+{
+  "name": "vista_q_toolkit",
+  "version": "1.0.0",
+  "description": "A Visual Quality of Experience Toolkit for Realistic Immersive Telepresence Applications.",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Realistic3D-MIUN/VISTA-Q-ToolKit.git"
+  },
+  "keywords": [
+    "360-Image",
+    "360-Video",
+    "Stereo-Image",
+    "Stereo-Video",
+    "Light-Field-Image",
+    "Light-Field-Rendering"
+  ],
+  "author": "Manu Gond (manu.gond@miun.se)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Realistic3D-MIUN/VISTA-Q-ToolKit/issues"
+  },
+  "homepage": "https://github.com/Realistic3D-MIUN/VISTA-Q-ToolKit#readme",
+  "dependencies": {
+    "express": "^4.21.2",
+    "express-async-errors": "^3.1.1",
+    "formidable": "^3.5.2",
+    "i": "^0.3.7",
+    "joi": "^17.13.3",
+    "loadash": "^1.0.0",
+    "lodash": "^4.17.21",
+    "winston": "^3.17.0"
+  }
+}

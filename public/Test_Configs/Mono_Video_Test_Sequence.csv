@@ -1,0 +1,5 @@
+sample_id,video_path,zoom_factor,presentation_time
+moon_circle,./public/examples/videos/mono_videos/moon_circle.mp4,0.4,2
+moon_dolly_zoom,./public/examples/videos/mono_videos/moon_dolly-zoom-in.mp4,0.5,2
+moon_swing,./public/examples/videos/mono_videos/moon_swing.mp4,0.6,1
+moon_zoom_in,./public/examples/videos/mono_videos/moon_zoom-in.mp4,0.7,3

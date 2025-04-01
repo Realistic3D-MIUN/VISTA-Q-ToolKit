@@ -1,0 +1,12 @@
+PyOpenGL==3.1.0
+PyOpenGL-accelerate==3.1.7
+pyOpenSSL==23.2.0
+pyparsing==3.0.9
+PyQt5==5.15.9
+PyQt5-Qt5==5.15.2
+PyQt5-sip==12.12.2
+PyQt6==6.8.1
+PyQt6-Qt6==6.8.2
+PyQt6-sip==13.10.0
+pyquaternion==0.9.9
+pyrender==0.1.45

@@ -1,0 +1,9 @@
+testID,sample_id,rating,rating_label,date_time
+MG28_FaceTrack,hill_Adampi,5,Excellent,2025-04-01 09:33:48
+MG28_FaceTrack,pasta_AdaMPI,3,Fair,2025-04-01 09:34:03
+MG28_FaceTrack,hill_TMPI,2,Poor,2025-04-01 09:34:23
+MG28_FaceTrack,hill_TMPI,1,Bad,2025-04-01 09:34:35
+MG28_MouseControl,hill_Adampi,5,Excellent,2025-04-01 09:35:27
+MG28_MouseControl,pasta_AdaMPI,3,Fair,2025-04-01 09:35:41
+MG28_MouseControl,hill_TMPI,2,Poor,2025-04-01 09:36:00
+MG28_MouseControl,hill_TMPI,4,Good,2025-04-01 09:36:16

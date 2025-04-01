@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>QoE Stereoscopic Videos</title>
+    <style>
+      body, html {
+        margin: 0; 
+        padding: 0; 
+        width: 100%; 
+        height: 100%; 
+        overflow: hidden;
+        background-color: #808080;
+      }
+      /* Modal styles */
+      #testIdModal, #modeSelectionModal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: #808080;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+      }
+      #testIdModalContent, #modeSelectionContent {
+        background: #fff;
+        padding: 20px 30px;
+        border-radius: 5px;
+        text-align: center;
+      }
+      #testIdModalContent input {
+        padding: 10px;
+        font-size: 16px;
+        margin-top: 10px;
+        width: 80%;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        margin: 10px;
+        cursor: pointer;
+        border: none;
+        border-radius: 5px;
+        background-color: #007bff;
+        color: white;
+        transition: background-color 0.3s;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      .end-message {
+        text-align: center;
+        color: #007bff;
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+      #backToHome {
+        padding: 15px 30px;
+        font-size: 18px;
+        background-color: #28a745;
+      }
+      #backToHome:hover {
+        background-color: #218838;
+      }
+      #desktopContainer {
+        display: none;
+        width: 100vw;
+        height: 100vh;
+        position: fixed;
+        top: 0;
+        left: 0;
+        background-color: #808080;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+      #videoContainer {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: absolute;
+        top: 0;
+        left: 0;
+        gap: 20px;
+      }
+      #videoContainer video {
+        max-width: 45%;
+        max-height: 90%;
+        object-fit: contain;
+      }
+      #controlsContainer {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: 10;
+      }
+      .rating-button {
+        padding: 15px 30px;
+        font-size: 18px;
+      }
+      #sampleIdDisplay {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #808080;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 5px;
+        font-size: 18px;
+        z-index: 20;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Test ID Modal -->
+    <div id="testIdModal">
+      <div id="testIdModalContent">
+        <h2 style="font-family: Arial, Helvetica, sans-serif;">Please Enter Your Test ID</h2>
+        <input type="text" id="testIdInput" placeholder="Enter test_id" style="font-family: Arial, Helvetica, sans-serif;"/>
+        <br />
+        <button id="testIdSubmit">Submit</button>
+      </div>
+    </div>
+
+    <!-- Mode Selection Modal -->
+    <div id="modeSelectionModal" style="display: none;">
+      <div id="modeSelectionContent">
+        <h2>Select Display Mode</h2>
+        <button id="desktopMode">Desktop Mode</button>
+        <button id="vrMode">Enter VR</button>
+      </div>
+    </div>
+
+    <!-- Desktop Mode Container -->
+    <div id="desktopContainer">
+      <div id="sampleIdDisplay"></div>
+      <div id="videoContainer"></div>
+      <div id="controlsContainer"></div>
+    </div>
+
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.152.2/build/three.module.js"
+        }
+      }
+    </script>
+    <script type="module" crossorigin="anonymous">
+      import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
+      import { VRButton } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/VRButton.js';
+      import { XRControllerModelFactory } from 'https://cdn.jsdelivr.net/npm/three@0.152.2/examples/jsm/webxr/XRControllerModelFactory.js';
+      import { FontLoader } from 'https://threejs.org/examples/jsm/loaders/FontLoader.js';
+      import { TextGeometry } from 'https://threejs.org/examples/jsm/geometries/TextGeometry.js';
+      import * as ThreeMeshUI from 'https://cdn.jsdelivr.net/npm/three-mesh-ui@6.5.4/+esm';
+
+      // Global variables
+      let test_id = "";
+      let camera, scene, renderer, controller;
+      let leftVideo, rightVideo;
+      let leftVideoTexture, rightVideoTexture;
+      let leftSphere, rightSphere;
+      let startButton3D;
+      let text3D;
+      let ratingButtons = [];
+      let presentationTimeout;
+      let currentMode = null; // 'desktop' or 'vr'
+      let desktopLeftVideo = null;
+      let desktopRightVideo = null;
+      let videoPairs = [];
+      let currentVideoIndex = 0;
+      let sampleTextMesh = null; // Initialize sampleTextMesh
+
+      // Arrays to keep the results
+      let testID;
+      let sampleID_List = [];
+      let rating_List = [];
+
+      var ratings = ["Excellent", "Very Good", "Good", "Acceptable", "Poor"]; // default ratings if we don't get any from server
+      let testMode = false;
+
+      // A simple state machine: "start" -> "presentation" -> "rating"
+      let phase = "start";
+
+      // Function to shuffle an array in place (Fisher-Yates algorithm)
+      function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [array[i], array[j]] = [array[j], array[i]];
+        }
+      }
+
+      fetch('/api/getACR_Scale/')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        return response.json();
+      })
+      .then(data => {
+        ratings = data; // Update the ratings variable with the fetched data
+        console.log('Updated ratings:', ratings);
+      })
+      .catch(error => {
+        console.error('Error fetching rating scale:', error);
+      });
+
+      // Fetch CSV Data
+      fetch('./public/Test_Configs/Stereo_Video_Test_Sequence.csv')
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Failed to load test sequence: ${response.status} ${response.statusText}`);
+          }
+          return response.text();
+        })
+        .then(text => {
+          const lines = text.split("\n").slice(1); // Skip header
+          console.log(`Loaded ${lines.length} test entries`);
+          
+          videoPairs = [];
+          lines.forEach(line => {
+            if (!line.trim()) return; // Skip empty lines
+            
+            const [sample_id_csv, left_video_path, right_video_path, zoom_factor, presentation_time] = line.split(",");
+            if (left_video_path && right_video_path) {
+              videoPairs.push({ 
+                sample_id: sample_id_csv.trim(), 
+                left_video_path: left_video_path.trim(), 
+                right_video_path: right_video_path.trim(), 
+                zoom_factor: zoom_factor ? parseFloat(zoom_factor.trim()) : 0.6,
+                presentation_time: presentation_time ? parseFloat(presentation_time.trim()) : 2
+              });
+            }
+          });
+          
+          // Log loaded videos for debugging
+          console.log(`Loaded ${videoPairs.length} video pairs:`);
+          videoPairs.forEach((pair, index) => {
+            console.log(`${index + 1}. ${pair.sample_id}: Left=${pair.left_video_path}, Right=${pair.right_video_path}`);
+          });
+          
+          // Shuffle the list and reset the index
+          shuffle(videoPairs);
+          currentVideoIndex = 0;
+        })
+        .catch(error => {
+          console.error('Error loading test sequence:', error);
+          alert('Failed to load test sequence. Please check console for details.');
+        });
+
+      // Wait until the user submits the test_id before showing mode selection
+      document.getElementById('testIdSubmit').addEventListener('click', () => {
+        const input = document.getElementById('testIdInput').value.trim();
+        if (input === "") {
+          alert("Please enter a valid test ID.");
+          return;
+        }
+        test_id = input;
+        console.log("Test ID entered:", test_id);
+        testID = test_id;
+        // Remove the test ID modal and show mode selection
+        document.getElementById('testIdModal').style.display = 'none';
+        document.getElementById('modeSelectionModal').style.display = 'flex';
+      });
+
+      // Handle mode selection
+      document.getElementById('desktopMode').addEventListener('click', () => {
+        currentMode = 'desktop';
+        document.getElementById('modeSelectionModal').style.display = 'none';
+        document.getElementById('desktopContainer').style.display = 'block';
+        createDesktopStartButton();
+      });
+
+      document.getElementById('vrMode').addEventListener('click', () => {
+        currentMode = 'vr';
+        document.getElementById('modeSelectionModal').style.display = 'none';
+        init();
+        animate();
+      });
+
+      // Desktop mode functions
+      function createDesktopStartButton() {
+        const startButton = document.createElement('button');
+        startButton.textContent = 'Start Test';
+        startButton.className = 'rating-button';
+        startButton.onclick = () => {
+          document.getElementById('controlsContainer').innerHTML = '';
+          phase = 'presentation';
+          loadNextVideoPair();
+        };
+        document.getElementById('controlsContainer').appendChild(startButton);
+      }
+
+      function createDesktopRatingButtons() {
+        const container = document.getElementById('controlsContainer');
+        container.innerHTML = '';
+        
+        ratings.forEach(rating => {
+          const button = document.createElement('button');
+          button.textContent = rating;
+          button.className = 'rating-button';
+          button.onclick = () => {
+            rating_List.push(rating);
+            phase = 'presentation';
+            // Pause and remove the videos before showing rating buttons
+            if (desktopLeftVideo) {
+              desktopLeftVideo.pause();
+              desktopLeftVideo.remove();
+              desktopLeftVideo = null;
+            }
+            if (desktopRightVideo) {
+              desktopRightVideo.pause();
+              desktopRightVideo.remove();
+              desktopRightVideo = null;
+            }
+            loadNextVideoPair();
+          };
+          container.appendChild(button);
+        });
+      }
+
+      // Modified loadNextVideoPair function to handle both modes
+      function loadNextVideoPair() {
+        if (presentationTimeout) clearTimeout(presentationTimeout);
+
+        if (currentVideoIndex < videoPairs.length) {
+          const { sample_id, left_video_path, right_video_path, zoom_factor, presentation_time } = videoPairs[currentVideoIndex];
+          currentVideoIndex++;
+          sampleID_List.push(sample_id);
+
+          if (currentMode === 'desktop') {
+            // Desktop mode
+            const videoContainer = document.getElementById('videoContainer');
+            const sampleIdDisplay = document.getElementById('sampleIdDisplay');
+            const controlsContainer = document.getElementById('controlsContainer');
+            
+            // Update sample ID display
+            sampleIdDisplay.textContent = `Sample ID: ${sample_id}`;
+            sampleIdDisplay.style.display = testMode ? 'block' : 'none';
+            
+            // Clear any existing rating buttons
+            controlsContainer.innerHTML = '';
+            
+            // Create and display left video
+            if (desktopLeftVideo) {
+              desktopLeftVideo.pause();
+              videoContainer.removeChild(desktopLeftVideo);
+            }
+            desktopLeftVideo = document.createElement('video');
+            desktopLeftVideo.src = left_video_path;
+            desktopLeftVideo.playsInline = true;
+            desktopLeftVideo.muted = true;
+            desktopLeftVideo.loop = true;
+            videoContainer.appendChild(desktopLeftVideo);
+
+            // Create and display right video
+            if (desktopRightVideo) {
+              desktopRightVideo.pause();
+              videoContainer.removeChild(desktopRightVideo);
+            }
+            desktopRightVideo = document.createElement('video');
+            desktopRightVideo.src = right_video_path;
+            desktopRightVideo.playsInline = true;
+            desktopRightVideo.muted = true;
+            desktopRightVideo.loop = true;
+            videoContainer.appendChild(desktopRightVideo);
+
+            // Play both videos
+            Promise.all([
+              desktopLeftVideo.play(),
+              desktopRightVideo.play()
+            ]).catch(error => console.error('Error playing videos:', error));
+
+            // Schedule rating buttons
+            presentationTimeout = setTimeout(() => {
+              // Pause and remove the videos
+              if (desktopLeftVideo) {
+                desktopLeftVideo.pause();
+                desktopLeftVideo.remove();
+                desktopLeftVideo = null;
+              }
+              if (desktopRightVideo) {
+                desktopRightVideo.pause();
+                desktopRightVideo.remove();
+                desktopRightVideo = null;
+              }
+              createDesktopRatingButtons();
+              phase = 'rating';
+            }, presentation_time * 1000);
+          } else {
+            // VR mode - based on working mono_video.html code but adapted for stereoscopic videos
+            console.log("Loading VR video pair:", sample_id);
+            console.log("Left video:", left_video_path);
+            console.log("Right video:", right_video_path);
+            
+            // Clean up any existing meshes
+            if (leftSphere) {
+              scene.remove(leftSphere);
+              leftSphere = null;
+            }
+            if (rightSphere) {
+              scene.remove(rightSphere);
+              rightSphere = null;
+            }
+            
+            // Create separate video elements for left and right eyes
+            const leftVideoElement = document.createElement('video');
+            const rightVideoElement = document.createElement('video');
+            
+            // Set properties for left video
+            leftVideoElement.src = left_video_path;
+            leftVideoElement.crossOrigin = "anonymous";
+            leftVideoElement.muted = true;
+            leftVideoElement.playsInline = true;
+            leftVideoElement.loop = true;
+            
+            // Set properties for right video
+            rightVideoElement.src = right_video_path;
+            rightVideoElement.crossOrigin = "anonymous";
+            rightVideoElement.muted = true;
+            rightVideoElement.playsInline = true;
+            rightVideoElement.loop = true;
+            
+            // Start playing videos
+            leftVideoElement.play().catch(e => console.warn("Left video play error:", e));
+            rightVideoElement.play().catch(e => console.warn("Right video play error:", e));
+            
+            // Create textures
+            const leftTexture = new THREE.VideoTexture(leftVideoElement);
+            const rightTexture = new THREE.VideoTexture(rightVideoElement);
+            
+            // Function to create spheres once video metadata is loaded
+            const createSpheres = () => {
+              // Get dimensions from left video (assuming both have same dimensions)
+              const videoWidth = leftVideoElement.videoWidth || 1280;
+              const videoHeight = leftVideoElement.videoHeight || 720;
+              const aspect = videoWidth / videoHeight;
+              
+              console.log("Video dimensions:", videoWidth, "x", videoHeight);
+              
+              // Calculate geometry parameters
+              const thetaLength = (Math.PI / 4) * zoom_factor;
+              const phiLength = thetaLength * aspect;
+              const phiStart = (3 * Math.PI / 2) - (phiLength / 2);
+              const thetaStart = (Math.PI / 2) - (thetaLength / 2);
+              
+              // Create geometry for video sphere
+              const geometry = new THREE.SphereGeometry(500, 60, 40, phiStart, phiLength, thetaStart, thetaLength);
+              geometry.scale(-1, 1, 1);
+              
+              // Create materials with video textures
+              const leftMaterial = new THREE.MeshBasicMaterial({ map: leftTexture });
+              const rightMaterial = new THREE.MeshBasicMaterial({ map: rightTexture });
+              
+              // Create meshes for each eye
+              leftSphere = new THREE.Mesh(geometry, leftMaterial);
+              rightSphere = new THREE.Mesh(geometry, rightMaterial);
+              
+              // Set layers for proper stereoscopic rendering
+              leftSphere.layers.set(1);  // Left eye only
+              rightSphere.layers.set(2); // Right eye only
+              
+              // Add to scene
+              scene.add(leftSphere);
+              scene.add(rightSphere);
+              
+              console.log("Stereo video spheres created and added to scene");
+              
+              // Add sample ID text if in test mode
+              if (sampleTextMesh) scene.remove(sampleTextMesh);
+              if (testMode) {
+                const canvasSample = document.createElement("canvas");
+                const ctxSample = canvasSample.getContext("2d");
+                canvasSample.width = 512;
+                canvasSample.height = 128;
+                ctxSample.fillStyle = "rgba(0, 0, 0, 0.5)";
+                ctxSample.fillRect(0, 0, canvasSample.width, canvasSample.height);
+                ctxSample.fillStyle = "#FFFFFF";
+                ctxSample.font = "bold 40px Arial";
+                ctxSample.textAlign = "center";
+                ctxSample.fillText(sample_id, canvasSample.width / 2, canvasSample.height / 2 + 15);
+                
+                const sampleTexture = new THREE.CanvasTexture(canvasSample);
+                const sampleMaterial = new THREE.MeshBasicMaterial({ map: sampleTexture, transparent: true });
+                const sampleGeometry = new THREE.PlaneGeometry(1, 0.25);
+                sampleTextMesh = new THREE.Mesh(sampleGeometry, sampleMaterial);
+                sampleTextMesh.position.set(0, -0.8, -2);
+                scene.add(sampleTextMesh);
+              }
+            };
+            
+            // Wait for video metadata to load
+            const checkMetadata = () => {
+              if (leftVideoElement.readyState >= 1 && rightVideoElement.readyState >= 1) {
+                createSpheres();
+              } else {
+                // Check again after a short delay
+                setTimeout(checkMetadata, 100);
+              }
+            };
+            
+            // Start checking for metadata
+            checkMetadata();
+            
+            // Set a timeout to show rating scale after presentation_time
+            presentationTimeout = setTimeout(() => {
+              console.log("Presentation time ended, showing rating scale");
+              
+              // Pause and clean up videos
+              leftVideoElement.pause();
+              rightVideoElement.pause();
+              
+              // Remove spheres from scene
+              if (leftSphere) scene.remove(leftSphere);
+              if (rightSphere) scene.remove(rightSphere);
+              
+              // Show rating scale
+              showRatingScale();
+            }, presentation_time * 1000);
+          }
+        } else {
+          showEndOfListMessage();
+        }
+      }
+
+      function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x808080);
+
+        // Create a stereo camera
+        camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 0, 0);
+        
+        // Configure renderer with XR support
+        renderer = new THREE.WebGLRenderer({ 
+          antialias: true,
+          alpha: true
+        });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        
+        // Append to DOM
+        document.body.appendChild(renderer.domElement);
+        
+        // Create VR button
+        const vrButton = VRButton.createButton(renderer);
+        document.body.appendChild(vrButton);
+
+        // Add VR Controller
+        controller = renderer.xr.getController(0);
+        scene.add(controller);
+
+        // Log session events
+        renderer.xr.addEventListener('sessionstart', () => {
+          console.log('XR session started');
+          
+          // Ensure camera layers are set up correctly for stereo viewing
+          camera.layers.enableAll();
+        });
+        
+        renderer.xr.addEventListener('sessionend', () => {
+          console.log('XR session ended');
+        });
+
+        // Create controller grip and add model
+        const controllerModelFactory = new XRControllerModelFactory();
+        const controllerGrip = renderer.xr.getControllerGrip(0);
+        controllerGrip.add(controllerModelFactory.createControllerModel(controllerGrip));
+        scene.add(controllerGrip);
+
+        // Create controller ray
+        const rayGeometry = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(0, 0, 0),
+          new THREE.Vector3(0, 0, -1)
+        ]);
+        const rayMaterial = new THREE.LineBasicMaterial({ color: 0xff0000 });
+        const rayLine = new THREE.Line(rayGeometry, rayMaterial);
+        rayLine.name = 'controllerRay';
+        rayLine.scale.z = 5;
+        controller.add(rayLine);
+
+        // Add controller select listener
+        controller.addEventListener('selectstart', onSelectStart);
+
+        // Create start button
+        createStartButton();
+
+        // Handle window resizing
+        window.addEventListener('resize', onWindowResize, false);
+
+        // Add Exit VR button
+        const exitButton = document.createElement('button');
+        exitButton.textContent = 'Exit VR';
+        exitButton.style.position = 'fixed';
+        exitButton.style.top = '20px';
+        exitButton.style.right = '20px';
+        exitButton.style.zIndex = '9999';
+        exitButton.style.display = 'none';
+        exitButton.style.backgroundColor = '#ff4444';
+        exitButton.style.padding = '15px 30px';
+        exitButton.style.fontSize = '18px';
+        exitButton.style.borderRadius = '5px';
+        exitButton.style.cursor = 'pointer';
+        exitButton.style.border = 'none';
+        exitButton.style.color = 'white';
+        exitButton.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+        exitButton.onmouseover = () => {
+          exitButton.style.backgroundColor = '#cc0000';
+        };
+        exitButton.onmouseout = () => {
+          exitButton.style.backgroundColor = '#ff4444';
+        };
+        exitButton.onclick = () => {
+          if (renderer.xr.isPresenting) {
+            const session = renderer.xr.getSession();
+            if (session) session.end();
+          }
+          cleanupAndReset();
+        };
+        document.body.appendChild(exitButton);
+      }
+
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function animate() {
+        renderer.setAnimationLoop(render);
+      }
+
+      function render() {
+        // Always update video textures if they exist
+        if (leftSphere && leftSphere.material.map) {
+          leftSphere.material.map.needsUpdate = true;
+        }
+        if (rightSphere && rightSphere.material.map) {
+          rightSphere.material.map.needsUpdate = true;
+        }
+
+        // In VR we want to show a hover effect on interactive buttons
+        const raycaster = new THREE.Raycaster();
+        const tempMatrix = new THREE.Matrix4();
+        tempMatrix.identity().extractRotation(controller.matrixWorld);
+        const origin = new THREE.Vector3();
+        origin.setFromMatrixPosition(controller.matrixWorld);
+        const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(tempMatrix);
+        raycaster.set(origin, direction);
+
+        // Hover effect for start button
+        if (phase === "start" && startButton3D) {
+          const intersects = raycaster.intersectObject(startButton3D);
+          if (intersects.length > 0) {
+            startButton3D.scale.lerp(new THREE.Vector3(1.2, 1.2, 1), 0.1);
+          } else {
+            startButton3D.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+          }
+        }
+
+        // Hover effect for rating buttons
+        if (phase === "rating" && ratingButtons.length > 0) {
+          ratingButtons.forEach(btn => {
+            const intersects = raycaster.intersectObject(btn);
+            if (intersects.length > 0) {
+              btn.scale.lerp(new THREE.Vector3(1.2, 1.2, 1), 0.1);
+            } else {
+              btn.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+            }
+          });
+        }
+
+        // Hover effect for exit button
+        const exitButton = scene.getObjectByName("exitButton");
+        if (exitButton) {
+          const intersects = raycaster.intersectObject(exitButton);
+          if (intersects.length > 0) {
+            exitButton.scale.lerp(new THREE.Vector3(1.2, 1.2, 1), 0.1);
+          } else {
+            exitButton.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
+          }
+        }
+
+        // Render the scene
+        renderer.render(scene, camera);
+        
+        // Update ThreeMeshUI components
+        ThreeMeshUI.update();
+      }
+
+      function onSelectStart() {
+        const raycaster = new THREE.Raycaster();
+        const tempMatrix = new THREE.Matrix4();
+        tempMatrix.identity().extractRotation(controller.matrixWorld);
+        const origin = new THREE.Vector3();
+        origin.setFromMatrixPosition(controller.matrixWorld);
+        const direction = new THREE.Vector3(0, 0, -1).applyMatrix4(tempMatrix);
+        raycaster.set(origin, direction);
+
+        if (phase === "start" && startButton3D) {
+          const intersects = raycaster.intersectObject(startButton3D);
+          if (intersects.length > 0) {
+            scene.remove(startButton3D);
+            startButton3D = null;
+            phase = "presentation";
+            loadNextVideoPair();
+          }
+        } else if (phase === "rating" && ratingButtons.length > 0) {
+          const intersects = raycaster.intersectObjects(ratingButtons);
+          if (intersects.length > 0) {
+            const hit = intersects[0].object;
+            let node = hit;
+            while(node && node.userData.rating === undefined) {
+              node = node.parent;
+            }
+            const rating = node?.userData.rating ?? null;
+            console.log("User rated:", rating);
+            rating_List.push(rating);
+            ratingButtons.forEach(btn => scene.remove(btn));
+            ratingButtons = [];
+            phase = "presentation";
+            loadNextVideoPair();
+          }
+        }
+
+        // Check for exit button interaction
+        const exitButton = scene.getObjectByName("exitButton");
+        if (exitButton) {
+          const intersects = raycaster.intersectObject(exitButton);
+          if (intersects.length > 0 && renderer.xr.isPresenting) {
+            const session = renderer.xr.getSession();
+            if (session) session.end();
+            cleanupAndReset();
+          }
+        }
+      }
+
+      function createStartButton() {
+        const container = new ThreeMeshUI.Block({
+          width: 0.6,
+          height: 0.2,
+          padding: 0.05,
+          justifyContent: 'center',
+          alignItems: 'center',
+          fontFamily: "./public/js/assets/Roboto-msdf.json",
+          fontTexture: "./public/js/assets/Roboto-msdf.png",
+          fontSize: 0.05,
+          borderRadius: 0.05,
+          backgroundColor: new THREE.Color(0x007bff),
+          backgroundOpacity: 1
+        });
+
+        const text = new ThreeMeshUI.Text({
+          content: 'Start',
+          fontColor: new THREE.Color(0xffffff),
+          fontSize: 0.05,
+          textAlign: 'center',
+          textShadow: true,
+          textShadowColor: new THREE.Color(0x000000),
+          textShadowBlur: 0.01
+        });
+
+        container.add(text);
+        container.position.set(0, 1, -2);
+        scene.add(container);
+        startButton3D = container;
+      }
+
+      function showRatingScale() {
+        // Clean up video resources
+        if (leftSphere) {
+          if (leftSphere.material && leftSphere.material.map && leftSphere.material.map.image) {
+            leftSphere.material.map.image.pause();
+          }
+          scene.remove(leftSphere);
+          leftSphere = null;
+        }
+        
+        if (rightSphere) {
+          if (rightSphere.material && rightSphere.material.map && rightSphere.material.map.image) {
+            rightSphere.material.map.image.pause();
+          }
+          scene.remove(rightSphere);
+          rightSphere = null;
+        }
+
+        // Set phase to rating
+        phase = "rating";
+        
+        // Create rating buttons
+        const baseButtonWidth = 0.6;
+        const baseButtonHeight = 0.3;
+        const spacing = 0.1;
+        
+        const totalWidth = ratings.length * baseButtonWidth + (ratings.length - 1) * spacing;
+        const startX = -totalWidth / 2 + baseButtonWidth / 2;
+        
+        ratings.forEach((label, index) => {
+          const ratingContainer = new ThreeMeshUI.Block({
+            width: baseButtonWidth,
+            height: baseButtonHeight,
+            padding: 0.05,
+            justifyContent: 'center',
+            alignItems: 'center',
+            fontFamily: "./public/js/assets/Roboto-msdf.json",
+            fontTexture: "./public/js/assets/Roboto-msdf.png",
+            fontSize: 0.04,
+            borderRadius: 0.05,
+            backgroundColor: new THREE.Color(0x007bff),
+            backgroundOpacity: 1
+          });
+
+          const ratingText = new ThreeMeshUI.Text({
+            content: label,
+            fontColor: new THREE.Color(0xffffff),
+            fontSize: 0.04,
+            textAlign: 'center',
+            textShadow: true,
+            textShadowColor: new THREE.Color(0x000000),
+            textShadowBlur: 0.01
+          });
+
+          ratingContainer.add(ratingText);
+          ratingContainer.position.set(startX + index * (baseButtonWidth + spacing), 0, -2.5);
+          ratingContainer.userData.rating = label;
+          scene.add(ratingContainer);
+          ratingButtons.push(ratingContainer);
+        });
+      }
+
+      function showEndOfListMessage() {
+        if (currentMode === 'desktop') {
+          // Clean up videos if they exist
+          if (desktopLeftVideo) {
+            desktopLeftVideo.pause();
+            desktopLeftVideo.remove();
+            desktopLeftVideo = null;
+          }
+          if (desktopRightVideo) {
+            desktopRightVideo.pause();
+            desktopRightVideo.remove();
+            desktopRightVideo = null;
+          }
+
+          const container = document.getElementById('videoContainer');
+          container.innerHTML = `
+            <div style="text-align: center;">
+              <h1 class="end-message" style="color: #000000;">Thank you for your participation!</h1>
+            </div>
+          `;
+          document.getElementById('controlsContainer').innerHTML = '';
+          document.getElementById('sampleIdDisplay').style.display = 'none';
+        } else {
+          // VR mode
+          if (startButton3D) scene.remove(startButton3D);
+          if (leftSphere) {
+            if (leftSphere.material && leftSphere.material.map && leftSphere.material.map.image) {
+              leftSphere.material.map.image.pause();
+            }
+            scene.remove(leftSphere);
+          }
+          if (rightSphere) {
+            if (rightSphere.material && rightSphere.material.map && rightSphere.material.map.image) {
+              rightSphere.material.map.image.pause();
+            }
+            scene.remove(rightSphere);
+          }
+          ratingButtons.forEach(btn => scene.remove(btn));
+          ratingButtons = [];
+
+          const canvas_text = document.createElement("canvas");
+          const ctx_text = canvas_text.getContext("2d");
+          canvas_text.width = 768;
+          canvas_text.height = 128;
+          ctx_text.fillStyle = "#007bff";
+          ctx_text.fillRect(0, 0, canvas_text.width, canvas_text.height);
+          ctx_text.fillStyle = "#FFFFFF";
+          ctx_text.font = "bold 40px Arial";
+          ctx_text.textAlign = "center";
+          ctx_text.fillText("Thank you for your participation!", canvas_text.width / 2, canvas_text.height / 1.8);
+          const textTexture = new THREE.CanvasTexture(canvas_text);
+          const textMaterial = new THREE.MeshBasicMaterial({ map: textTexture });
+          const textGeometry = new THREE.PlaneGeometry(1.0, 0.2);
+          text3D = new THREE.Mesh(textGeometry, textMaterial);
+          text3D.position.set(0, 0.5, -2);
+          text3D.name = "text3D";
+          scene.add(text3D);
+
+          // Create Exit VR button using ThreeMeshUI
+          const exitContainer = new ThreeMeshUI.Block({
+            width: 0.6,
+            height: 0.2,
+            padding: 0.05,
+            justifyContent: 'center',
+            alignItems: 'center',
+            fontFamily: "./public/js/assets/Roboto-msdf.json",
+            fontTexture: "./public/js/assets/Roboto-msdf.png",
+            fontSize: 0.05,
+            borderRadius: 0.05,
+            backgroundColor: new THREE.Color(0xff4444),
+            backgroundOpacity: 1
+          });
+
+          const exitText = new ThreeMeshUI.Text({
+            content: 'Exit VR',
+            fontColor: new THREE.Color(0xffffff),
+            fontSize: 0.05,
+            textAlign: 'center',
+            textShadow: true,
+            textShadowColor: new THREE.Color(0x000000),
+            textShadowBlur: 0.01
+          });
+
+          exitContainer.add(exitText);
+          exitContainer.position.set(0, 1, -2);
+          exitContainer.name = "exitButton";
+          scene.add(exitContainer);
+        }
+        
+        console.log("Sample IDs:", sampleID_List);
+        console.log("Ratings:", rating_List);
+        writeDataToServer();
+      }
+
+      function cleanupAndReset() {
+        if (currentMode === 'desktop') {
+          // Clean up desktop videos
+          if (desktopLeftVideo) {
+            desktopLeftVideo.pause();
+            desktopLeftVideo.remove();
+            desktopLeftVideo = null;
+          }
+          if (desktopRightVideo) {
+            desktopRightVideo.pause();
+            desktopRightVideo.remove();
+            desktopRightVideo = null;
+          }
+        } else {
+          // Clean up VR mode
+          if (startButton3D) scene.remove(startButton3D);
+          if (leftSphere) {
+            leftVideo.pause();
+            scene.remove(leftSphere);
+          }
+          ratingButtons.forEach(btn => scene.remove(btn));
+          ratingButtons = [];
+        }
+
+        // Show mode selector and hide desktop container
+        document.getElementById('modeSelectionModal').style.display = 'flex';
+        document.getElementById('desktopContainer').style.display = 'none';
+
+        // Reset state
+        phase = 'start';
+        currentVideoIndex = 0;
+        sampleID_List = [];
+        rating_List = [];
+      }
+
+      function writeDataToServer() {
+        fetch('/api/write_stereo_video_results', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            testID: test_id,
+            sceneID: sampleID_List,
+            rating: rating_List
+          })
+        })
+          .then(response => response.json())
+          .then(data => console.log('Server response:', data))
+          .catch(error => console.error('Error:', error));
+      }
+    </script>
+  </body>
+</html> 

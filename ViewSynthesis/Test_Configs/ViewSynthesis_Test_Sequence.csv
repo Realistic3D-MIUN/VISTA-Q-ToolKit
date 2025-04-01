@@ -1,0 +1,5 @@
+sample_id,image_path,model_folder,presentation_time
+hill_Adampi,./Images/hill.jpg,./Models/AdaMPI/,10
+pasta_AdaMPI,./Images/pasta.jpg,./Models/AdaMPI/,10
+hill_TMPI,./Images/hill.jpg,./Models/TMPI_256/,10
+hill_TMPI,./Images/hill.jpg,./Models/TMPI_256/,10

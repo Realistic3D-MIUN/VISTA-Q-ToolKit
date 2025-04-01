@@ -1,0 +1,7 @@
+testID,sample_id,rating,date_time
+MG28_VRTrain,kitti,5 - Excellent,2025-04-01T07:28:45.000Z
+MG28_VRTrain,banana,3 - Fair,2025-04-01T07:28:45.000Z
+MG28_VRTest,banana,5 - Excellent,2025-04-01T07:29:51.510Z
+MG28_VRTest,moon,5 - Excellent,2025-04-01T07:29:51.510Z
+MG28_VRTest,kitti,2 - Poor,2025-04-01T07:29:51.510Z
+MG28_VRTest,miun,2 - Poor,2025-04-01T07:29:51.510Z

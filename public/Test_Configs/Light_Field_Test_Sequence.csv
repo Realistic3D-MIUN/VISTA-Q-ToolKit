@@ -1,0 +1,4 @@
+sample_id,lf_directory_path,file_prefix,cam_horizontal,cam_vertical,image_width,image_height,zoom_factor,presentation_time
+bag,./public/examples/images/light_field_images/sample_19/,19_image_,9,9,512,512,1,15
+plant,./public/examples/images/light_field_images/sample_20/,20_image_,9,9,512,512,0.5,15
+box,./public/examples/images/light_field_images/sample_22/,22_image_,9,9,512,512,1,15

@@ -1,0 +1,5 @@
+testID,sample_id,rating,date_time
+MG28_VRTest,plant,3 - Fair,2025-04-01T07:11:29.685Z
+MG28_VRTest,box,4 - Good,2025-04-01T07:11:29.685Z
+MG28_VRTest,bag,2 - Poor,2025-04-01T07:11:29.685Z
+MG28_VRTrain,bag,3 - Fair,2025-04-01T07:13:05.457Z

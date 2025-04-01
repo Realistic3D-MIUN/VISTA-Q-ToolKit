@@ -1,0 +1,5 @@
+sample_id,image_path,zoom_factor,presentation_time
+banana,./public/examples/images/mono_images/banana.jpeg,0.4,5
+kitti,./public/examples/images/mono_images/kitti.png,0.4,5
+miun,./public/examples/images/mono_images/miun.png,0.5,5
+moon,./public/examples/images/mono_images/moon.jpg,0.6,5
