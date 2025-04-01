@@ -31,4 +31,5 @@ ehthumbs.db
 Thumbs.db
 
 # ViewSynthesis Models
-ViewSynthesis/Models/ 
+ViewSynthesis/Models/**/*.pt
+ViewSynthesis/Models/**/*.pth

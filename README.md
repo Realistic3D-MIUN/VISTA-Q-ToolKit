@@ -33,7 +33,7 @@
 
 ## Table of Contents
 - [Overview](#overview)
-- [Live Demo](#live-demo)
+- [Live Demo and Video](#live-demo-and-video)
 - [Requirements](#requirements)
 - [Quick Setup Guide](#quick-setup-guide)
 - [Supported Data Types](#supported-data-types)
@@ -49,8 +49,11 @@
 VISTA-Q Toolkit is a comprehensive solution for evaluating and analyzing visual quality in immersive telepresence applications. It supports various data types and viewing modes, from basic monocular content to advanced light field imaging.
 
 
-### Live Demo
+### Live Demo and Video
 - [![Live Demo with Reduced Features](https://img.shields.io/badge/Live%20Demo%20With%20Reduced%20Features-Click%20Here-brightgreen.svg)](https://realistic3d-miun.github.io/Research/VISTA_Q_ToolKit/VISTA_Q_ToolKit.html)
+
+- [![Video Examples from GUI](https://img.shields.io/badge/Video%20Examples%20From%20Screen%20Recording-Click%20Here-red.svg)](https://www.dropbox.com/scl/fi/km4kz4oudvr7hh23exvsm/VISTA_Q_ToolKit_Video.mp4?rlkey=5ecpixudzvr5d1bcs6jlrlp8i&st=bnd3zd1p&dl=0)
+
 
 ## Requirements
 - OpenSSL
@@ -167,12 +170,12 @@ This project uses the following third-party libraries:
 - PyTorch - [BSD 3-Clause License](https://github.com/pytorch/pytorch/blob/main/LICENSE)
 
 ## Contact
-- **Manu Gond**
-  - Email: manu.gond@miun.se | manugond45@gmail.com
-- **Emin Zerman**
-  - Email: emin.zerman@miun.se
+- **Manu Gond** | **Emin Zerman** | **Mohammadreza Shamshirgarha** | **Marten Sjostrom**
+  - Email: {firstname.lastname}@miun.se
+- **Sebastian Knorr**
+  - Email: {firstname.lastname}@htw-berlin@de
 
----
+
 
 # Acknowledgements
 * We thank authors of [**AdaMPI**](https://github.com/yxuhan/AdaMPI), and [**TMPI**](https://github.com/facebookresearch/TMPI) for their view synthesis model codes which helped verify our ViewSynthesis Model Visualizer.

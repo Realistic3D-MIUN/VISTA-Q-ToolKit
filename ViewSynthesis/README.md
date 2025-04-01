@@ -2,6 +2,20 @@
 
 A comprehensive toolkit for evaluating Deep Learning-based view synthesis models in Quality of Experience (QoE) studies. This toolkit provides an intuitive interface for testing multiple models and collecting user ratings.
 
+<p align="center">
+  <table>
+      <td align="center">
+        <p>View Synthesis Method Rating using Mouse Control</p>
+        <img src="./../assets/View_Synthesis_Mouse_Control.gif" width="400">
+      </td>
+      <td align="center">
+        <p>View Synthesis Method Rating using Face Tracking</p>
+        <img src="./../assets/View_Synthesis_Face_Tracking.gif" width="400">
+      </td>
+    </tr>
+  </table>
+</p>
+
 ## Features
 
 - Support for multiple view synthesis models
@@ -19,7 +33,7 @@ A comprehensive toolkit for evaluating Deep Learning-based view synthesis models
 - Webcam (for face tracking mode)
 - Sufficient disk space for models and test images
 
-## Installation
+## Installation & Quick Run
 
 1. Clone the repository:
     ```bash
@@ -33,7 +47,7 @@ A comprehensive toolkit for evaluating Deep Learning-based view synthesis models
     ```
 
 3. Download the pre-compiled models:
-    - Download [Models.zip](Will_Add_Later)
+    - **Download [Models.zip](https://www.dropbox.com/scl/fi/j5ann2pw02oimbj98keu7/Models.zip?rlkey=wg861euzk4qntdgfh8ag1qqkg&st=j84z6199&dl=0)**
     - Extract the contents to the `/Models/` directory
     - This includes modified versions of [AdaMPI](https://github.com/yxuhan/AdaMPI) and [TMPI](https://github.com/facebookresearch/TMPI) models
 
